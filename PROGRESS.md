@@ -18,6 +18,8 @@
 - [x] .env.example 템플릿 생성
   - PANOPTO_*, LINUX_*, DB_*, 업로드/폴링 설정, FOLDER_NAME_DELIMITER 포함
   - 비밀값(클라이언트 시크릿/서비스계정/DB 자격증명)은 변수로만 정의(사용자 기재 예정)
+- [x] .env 실제 값 기재 완료 (사용자)
+- [x] .gitignore 추가 (.env, node_modules/, *.log, .env.local 제외)
 - [x] AGENTS.md 작성
   - 폴더명 규칙, 세션명은 파일명과 상이, 멱등성, DB/스키마, 업로드 흐름, 미해결 항목 문서화
 - [x] 폴더명 오타 수정: Uusers -> Users (최상위 폴더명)
@@ -30,7 +32,6 @@
 - [ ] 중복 course_name(학기/연도별 충돌) 처리 기준 - 학기/연도 판별자 컬럼 추가 검토
 - [ ] 파놉토연결ID -> 사용자 키(UserManagement API) 조회 방식 (IdP/SSO 설정 의존)
 - [ ] Linux -> 애플리케이션 파일 접근 방식 확정 (LOCAL_MOUNT vs SFTP)
-- [ ] .env 실제 값 기재 (사용자)
 
 ## 다음 단계 (구현 진입)
 
