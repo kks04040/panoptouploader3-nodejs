@@ -1,0 +1,24 @@
+{
+  "name": "panoptouploader3-nodejs",
+  "version": "0.1.0",
+  "description": "Linux 저장 서버의 MP4 영상을 Oracle content_migration 테이블 기반으로 Panopto로 마이그레이션하는 Node.js 서비스",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "start:once": "node src/index.js --once",
+    "start:watch": "node --watch src/index.js",
+    "lint": "eslint .",
+    "test": "echo \"no tests yet\" && exit 0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "oracledb": "^6.6.0",
+    "ssh2-sftp-client": "^12.0.0",
+    "winston": "^3.14.0"
+  }
+}
