@@ -6,7 +6,7 @@ import * as repo from './db/migrationRepository.js';
 import { resolveUserKey, ensureUser } from './panopto/users.js';
 import { ensureFolder, getFolder } from './panopto/folders.js';
 import { grantCreatorAccess } from './panopto/permissions.js';
-import { createUploadSession, finishUploadSession, getSessionStatus, isSessionComplete, isSessionFailed } from './panopto/sessions.js';
+import { createUploadSession, finishUploadSession, getSessionStatus, getUploadSession, isSessionComplete, isSessionFailed } from './panopto/sessions.js';
 import { uploadMediaFile } from './panopto/upload.js';
 import { openSource } from './linux/fileAccess.js';
 
@@ -27,14 +27,11 @@ export async function processMigration(row) {
 
   await repo.updateStatus(row.migration_id, 'UPLOADING');
 
-  let uploadSessionId = null;
   try {
-    const { sessionId, uploadTarget } = await createUploadSession(
-      courseFolderId,
-      row.panopto_session_name
-    );
-    uploadSessionId = sessionId;
-    await repo.updateSessionId(row.migration_id, sessionId);
+    const { sessionId, uploadTarget, skip } = await ensureUploadSession(row, courseFolderId, log);
+    if (skip) {
+      return;
+    }
 
     const source = await openSource(row.source_file_path);
     try {
@@ -43,7 +40,7 @@ export async function processMigration(row) {
       await source.close();
     }
 
-    await finishUploadSession(uploadSessionId);
+    await finishUploadSession(sessionId);
     await pollEncoding(row.migration_id, sessionId, log);
 
     await repo.markCompleted(row.migration_id);
@@ -51,6 +48,42 @@ export async function processMigration(row) {
   } catch (err) {
     log.error('Migration failed during upload', { err: err.message });
     throw err;
+  }
+}
+
+async function ensureUploadSession(row, courseFolderId, log) {
+  if (row.panopto_session_id) {
+    const session = await safeGetUploadSession(row.panopto_session_id);
+    if (session) {
+      if (isSessionComplete(session)) {
+        log.info('Session already complete, finalizing row', { sessionId: row.panopto_session_id });
+        await repo.markCompleted(row.migration_id);
+        return { sessionId: row.panopto_session_id, skip: true };
+      }
+      if (isSessionFailed(session)) {
+        throw new MigrationError(`Existing session ${row.panopto_session_id} is in failed state`, { retryable: false });
+      }
+      log.info('Reusing existing upload session', { sessionId: row.panopto_session_id });
+      const uploadTarget = session.uploadTarget || session.UploadTarget;
+      if (!uploadTarget) {
+        throw new MigrationError(`Existing session ${row.panopto_session_id} has no uploadTarget, cannot resume`, { retryable: false });
+      }
+      return { sessionId: row.panopto_session_id, uploadTarget };
+    }
+    log.warn('Stored session id not found in Panopto, creating new', { sessionId: row.panopto_session_id });
+  }
+
+  const { sessionId, uploadTarget } = await createUploadSession(courseFolderId, row.panopto_session_name);
+  await repo.updateSessionId(row.migration_id, sessionId);
+  return { sessionId, uploadTarget };
+}
+
+async function safeGetUploadSession(sessionId) {
+  try {
+    return await getUploadSession(sessionId);
+  } catch (err) {
+    logger.warn('Failed to fetch upload session, treating as missing', { sessionId, err: err.message });
+    return null;
   }
 }
 
@@ -120,12 +153,9 @@ async function ensureUserFolder(row, log) {
   const userFolderId = await ensureFolder(expectedName, config.panopto.usersParentFolderId);
   await repo.updateUserFolder(row.migration_id, userFolderId);
 
-  try {
-    const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
-    await grantCreatorAccess(userFolderId, userKey);
-  } catch (err) {
-    log.warn('Permission grant skipped/failed (non-fatal)', { err: err.message });
-  }
+  const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
+  await grantCreatorAccess(userFolderId, userKey);
+  log.info('Granted Creator access on user folder', { userFolderId, userKey });
   return userFolderId;
 }
 
@@ -152,8 +182,7 @@ async function pollEncoding(migrationId, sessionId, log) {
       if (Date.now() - start > timeoutMs) throw new MigrationError(`Polling status fetch failed: ${err.message}`, { retryable: true });
       continue;
     }
-    const state = session?.state || session?.Status || session?.status;
-    log.debug('Session encoding state', { state });
+    log.debug('Session encoding state', { state: session?.state || session?.Status || session?.status });
     if (isSessionComplete(session)) return;
     if (isSessionFailed(session)) throw new MigrationError(`Encoding failed for session ${sessionId}`, { retryable: false });
     if (Date.now() - start > timeoutMs) {

@@ -72,6 +72,7 @@ const config = {
     maxRetryCount: int('MAX_RETRY_COUNT', 3),
     batchSize: int('BATCH_SIZE', 50),
     loopIntervalSec: int('LOOP_INTERVAL_SEC', 30),
+    stuckReclaimSeconds: int('STUCK_RECLAIM_SECONDS', 600),
   },
   log: {
     level: str('LOG_LEVEL', 'info'),

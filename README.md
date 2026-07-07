@@ -46,11 +46,13 @@ db/content_migration.sql  # Oracle DDL
 4. `UPLOADING` 전환 → `POST /sessionUpload`로 빈 세션 생성, `uploadTarget` 확보.
 5. `uploadTarget`로 매니페스트 + MP4 PUT 업로드 후 `PUT /sessionUpload/{id}` 완료 신호.
 6. `POLLING_INTERVAL_SEC`/`POLLING_TIMEOUT_SEC` 기준 인코딩 폴링 → `Complete` 시 `COMPLETED`/`uploaded_at` 갱신.
-7. 실패 시 `status=FAILED`(또는 재시도 한도 내 `PENDING`), `error_message`, `retry_count` 갱신.
+7. 실패 시 `status=FAILED`(또는 재시도 가능 오류면 한도 내 `PENDING`), `error_message`, `retry_count` 갱신. `MAX_RETRY_COUNT`는 **총 시도 횟수**(초기 1 + 재시도 N-1) 의미. `retryable:false` 오류(데이터 결함·인코딩 실패)는 첫 실패에서 즉시 `FAILED`.
 
 ## 멱등성
 
 - 폴더/세션 생성 전 행의 `panopto_*_id` 컬럼과 sibling row를 조회해 기존 ID를 재사용합니다.
+- 세션 ID가 이미 존재하면 `GET /sessionUpload/{id}`로 상태 확인 → `Complete`면 즉시 `COMPLETED`, 미완료면 같은 `uploadTarget`으로 재업로드 이어서 진행.
+- 크래시로 `FOLDER_CREATING`/`UPLOADING`에 머문 행은 `STUCK_RECLAIM_SECONDS` 경과 시 다음 루프에서 `PENDING`으로 자동 회수.
 - `uq_cm_session`(course_folder_id, session_name) 고유 인덱스로 동일 과목 내 세션명 중복을 방지합니다.
 
 ## 주의/미해결 (1차 버전)

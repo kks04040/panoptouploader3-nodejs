@@ -9,6 +9,12 @@ let shuttingDown = false;
 const loopIntervalMs = config.upload.loopIntervalSec * 1000;
 
 async function runOnce() {
+  const reclaimed = await repo.reclaimStuckRows(config.upload.stuckReclaimSeconds).catch((e) => {
+    logger.warn('reclaimStuckRows failed', { err: e.message });
+    return 0;
+  });
+  if (reclaimed) logger.info('Reclaimed stuck rows', { count: reclaimed });
+
   logger.info('Fetching PENDING batch...', { batchSize: config.upload.batchSize });
   const rows = await repo.fetchPendingBatch(config.upload.batchSize);
   if (!rows.length) {
@@ -33,7 +39,7 @@ async function handleRow(row) {
       retryable,
       stack: err.stack,
     });
-    await repo.markFailed(row.migration_id, err.message).catch((e) =>
+    await repo.markFailed(row.migration_id, err.message, retryable).catch((e) =>
       logger.error('Failed to mark row as failed', { err: e.message })
     );
   }

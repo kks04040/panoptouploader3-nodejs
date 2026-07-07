@@ -74,10 +74,10 @@ async function openSftp(sourcePath) {
     close: async () => {
       try {
         if (openStream) openStream.destroy();
-      } catch {}
+      } catch { /* stream already closed */ }
       try {
         await sftp.end();
-      } catch {}
+      } catch { /* sftp already ended */ }
     },
   };
 }

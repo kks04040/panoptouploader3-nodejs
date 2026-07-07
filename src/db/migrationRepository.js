@@ -7,7 +7,7 @@ const COLUMNS = `
   panopto_user_folder_name, course_id, course_name,
   source_file_path, source_file_name, panopto_session_name,
   panopto_parent_folder_id, panopto_user_folder_id, panopto_course_folder_id,
-  panopto_session_id, status, error_message, retry_count,
+  panopto_session_id, status, retry_count,
   created_at, updated_at, uploaded_at
 `;
 
@@ -27,6 +27,25 @@ export async function fetchPendingBatch(limit) {
       limit: { val: limit, dir: oracledb.BIND_IN, type: oracledb.NUMBER },
     }, { outFormat: oracledb.OUT_FORMAT_OBJECT });
     return result.rows.map(normalizeRow);
+  } finally {
+    await conn.close();
+  }
+}
+
+export async function reclaimStuckRows(staleSeconds) {
+  const conn = await getConnection();
+  try {
+    const sql = `
+      UPDATE content_migration
+      SET status = 'PENDING', error_message = 'Reclaimed from stuck state'
+      WHERE status IN ('FOLDER_CREATING', 'UPLOADING')
+        AND updated_at < SYSTIMESTAMP - NUMTODSINTERVAL(:staleSec, 'SECOND')
+    `;
+    const result = await conn.execute(sql, {
+      staleSec: { val: staleSeconds, dir: oracledb.BIND_IN, type: oracledb.NUMBER },
+    });
+    await conn.commit();
+    return result.rowsAffected || 0;
   } finally {
     await conn.close();
   }
@@ -99,16 +118,17 @@ export async function markCompleted(id) {
   }
 }
 
-export async function markFailed(id, errorMessage) {
+export async function markFailed(id, errorMessage, retryable = true) {
   const conn = await getConnection();
   try {
     await conn.execute(
       `UPDATE content_migration
-       SET status = CASE WHEN retry_count + 1 >= :maxRetry THEN 'FAILED' ELSE 'PENDING' END,
+       SET status = CASE WHEN (:retryable = 0 OR retry_count + 1 >= :maxRetry) THEN 'FAILED' ELSE 'PENDING' END,
            error_message = :err,
            retry_count = retry_count + 1
        WHERE migration_id = :id`,
       {
+        retryable: { val: retryable ? 1 : 0, dir: oracledb.BIND_IN, type: oracledb.NUMBER },
         maxRetry: { val: config.upload.maxRetryCount, dir: oracledb.BIND_IN, type: oracledb.NUMBER },
         err: { val: truncate(errorMessage, 4000), dir: oracledb.BIND_IN, type: oracledb.STRING },
         id: { val: id, dir: oracledb.BIND_IN, type: oracledb.NUMBER },

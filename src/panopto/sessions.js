@@ -27,6 +27,16 @@ export async function getSessionStatus(sessionId) {
   return resp.data;
 }
 
+export async function getUploadSession(uploadSessionId) {
+  try {
+    const resp = await panoptoClient.get(`/sessionUpload/${uploadSessionId}`);
+    return resp.data;
+  } catch (err) {
+    if (err.response && err.response.status === 404) return null;
+    throw err;
+  }
+}
+
 export function isSessionComplete(session) {
   const state = session?.state || session?.Status || session?.status;
   const normalized = String(state || '').toLowerCase();
