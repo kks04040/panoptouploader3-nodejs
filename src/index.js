@@ -29,6 +29,15 @@ async function runOnce() {
 }
 
 async function handleRow(row) {
+  // 원자적 클레임: 다른 인스턴스가 같은 행을 동시에 처리하지 못하게 PENDING -> FOLDER_CREATING 전환
+  const claimed = await repo.claimRow(row.migration_id).catch((e) => {
+    logger.error('Failed to claim row', { migrationId: row.migration_id, err: e.message });
+    return false;
+  });
+  if (!claimed) {
+    logger.debug('Row already claimed by another instance, skipping', { migrationId: row.migration_id });
+    return;
+  }
   try {
     await processMigration(row);
   } catch (err) {

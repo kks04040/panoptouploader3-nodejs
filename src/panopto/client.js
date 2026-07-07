@@ -18,7 +18,13 @@ panoptoClient.interceptors.request.use(async (req) => {
 });
 
 panoptoClient.interceptors.response.use(
-  (r) => r,
+  (r) => {
+    logger.debug('Panopto API response', {
+      url: `${r.config?.method?.toUpperCase()} ${r.config?.baseURL}${r.config?.url}`,
+      status: r.status,
+    });
+    return r;
+  },
   async (error) => {
     const original = error.config;
     if (error.response && error.response.status === 401 && !original._retried) {

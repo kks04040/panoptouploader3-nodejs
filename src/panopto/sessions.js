@@ -1,4 +1,5 @@
 import panoptoClient from './client.js';
+import { pickField } from './util.js';
 import logger from '../utils/logger.js';
 
 export async function createUploadSession(folderId, sessionName) {
@@ -6,8 +7,8 @@ export async function createUploadSession(folderId, sessionName) {
   const body = { folderId, name: sessionName };
   const resp = await panoptoClient.post('/sessionUpload', body);
   const data = resp.data;
-  const sessionId = data.id || data.Id || data.ID;
-  const uploadTarget = data.uploadTarget || data.UploadTarget;
+  const sessionId = pickField(data, 'id', 'Id', 'ID');
+  const uploadTarget = pickField(data, 'uploadTarget', 'UploadTarget');
   if (!sessionId || !uploadTarget) {
     throw new Error(`Unexpected sessionUpload response: ${JSON.stringify(data).slice(0, 500)}`);
   }
@@ -38,7 +39,7 @@ export async function getUploadSession(uploadSessionId) {
 }
 
 export function isSessionComplete(session) {
-  const state = session?.state || session?.Status || session?.status;
+  const state = pickField(session, 'state', 'Status', 'status');
   const normalized = String(state || '').toLowerCase();
   return normalized === 'complete' || normalized === 'completed';
 }
@@ -46,6 +47,6 @@ export function isSessionComplete(session) {
 const normalizedFailedStates = new Set(['failed', 'error', 'invalid']);
 
 export function isSessionFailed(session) {
-  const state = String(session?.state || session?.Status || session?.status || '').toLowerCase();
+  const state = String(pickField(session, 'state', 'Status', 'status') || '').toLowerCase();
   return normalizedFailedStates.has(state);
 }

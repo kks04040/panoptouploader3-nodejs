@@ -53,24 +53,37 @@ export async function processMigration(row) {
 
 async function ensureUploadSession(row, courseFolderId, log) {
   if (row.panopto_session_id) {
-    const session = await safeGetUploadSession(row.panopto_session_id);
-    if (session) {
-      if (isSessionComplete(session)) {
+    // 1) 검증된 엔드포인트(GET /sessions/{id})로 세션 상태를 먼저 확인.
+    //    GET /sessionUpload/{id}가 지원되지 않을 수 있으므로 상태 판단은 이 엔드포인트에 의존.
+    let status = null;
+    try {
+      status = await getSessionStatus(row.panopto_session_id);
+    } catch (err) {
+      log.warn('Failed to fetch session status for stored id', { sessionId: row.panopto_session_id, err: err.message });
+    }
+    if (status) {
+      if (isSessionComplete(status)) {
         log.info('Session already complete, finalizing row', { sessionId: row.panopto_session_id });
         await repo.markCompleted(row.migration_id);
         return { sessionId: row.panopto_session_id, skip: true };
       }
-      if (isSessionFailed(session)) {
+      if (isSessionFailed(status)) {
         throw new MigrationError(`Existing session ${row.panopto_session_id} is in failed state`, { retryable: false });
       }
-      log.info('Reusing existing upload session', { sessionId: row.panopto_session_id });
-      const uploadTarget = session.uploadTarget || session.UploadTarget;
-      if (!uploadTarget) {
-        throw new MigrationError(`Existing session ${row.panopto_session_id} has no uploadTarget, cannot resume`, { retryable: false });
+      // 2) 미완료(처리중) -> uploadTarget 재사용 시도(best-effort).
+      //    GET /sessionUpload/{id}가 응답에 uploadTarget을 포함하지 않을 수 있어, 실패해도 치명적이지 않음.
+      const uploadSession = await safeGetUploadSession(row.panopto_session_id);
+      const uploadTarget = uploadSession?.uploadTarget || uploadSession?.UploadTarget;
+      if (uploadTarget) {
+        log.info('Reusing existing upload session', { sessionId: row.panopto_session_id });
+        return { sessionId: row.panopto_session_id, uploadTarget };
       }
-      return { sessionId: row.panopto_session_id, uploadTarget };
+      // uploadTarget을 얻지 못했으면 기존 미완료 세션은 두고 새 세션을 생성해 처음부터 재업로드.
+      // 영구 FAILED 대신 재시도 가능한 경로로 회복.
+      log.warn('Stored session in progress but no uploadTarget; creating new session to re-upload', { sessionId: row.panopto_session_id });
+    } else {
+      log.warn('Stored session id status unknown; creating new session', { sessionId: row.panopto_session_id });
     }
-    log.warn('Stored session id not found in Panopto, creating new', { sessionId: row.panopto_session_id });
   }
 
   const { sessionId, uploadTarget } = await createUploadSession(courseFolderId, row.panopto_session_name);
@@ -134,13 +147,9 @@ async function ensurePanoptoUser(row, log) {
 }
 
 async function grantCourseAccess(courseFolderId, row, log) {
-  try {
-    const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
-    await grantCreatorAccess(courseFolderId, userKey);
-    log.info('Granted Creator access on course folder', { courseFolderId, userKey });
-  } catch (err) {
-    log.warn('Course folder permission grant skipped/failed (non-fatal)', { err: err.message });
-  }
+  const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
+  await grantCreatorAccess(courseFolderId, userKey);
+  log.info('Granted Creator access on course folder', { courseFolderId, userKey });
 }
 
 async function ensureUserFolder(row, log) {

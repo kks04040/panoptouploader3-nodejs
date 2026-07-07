@@ -1,4 +1,5 @@
 import panoptoClient from './client.js';
+import { pickField } from './util.js';
 import logger from '../utils/logger.js';
 
 export async function listChildFolders(parentId, searchName) {
@@ -7,9 +8,10 @@ export async function listChildFolders(parentId, searchName) {
   const resp = await panoptoClient.get('/folders', { params });
   const results = resp.data?.results || resp.data || [];
   if (searchName) {
-    return results.filter(
-      (f) => f.name === searchName || f.name?.toLowerCase() === searchName?.toLowerCase()
-    );
+    return results.filter((f) => {
+      const n = pickField(f, 'name', 'Name');
+      return n === searchName || n?.toLowerCase() === searchName?.toLowerCase();
+    });
   }
   return results;
 }
@@ -18,15 +20,20 @@ export async function createFolder(name, parentId) {
   logger.info('Creating Panopto folder', { name, parentId });
   const resp = await panoptoClient.post('/folders', { name, parent: parentId });
   const folder = resp.data;
-  logger.info('Panopto folder created', { name, id: folder.id || folder.Id });
-  return folder.id || folder.Id || folder.ID;
+  const id = pickField(folder, 'id', 'Id', 'ID');
+  if (!id) {
+    throw new Error(`Unexpected createFolder response (no id): ${JSON.stringify(folder).slice(0, 500)}`);
+  }
+  logger.info('Panopto folder created', { name, id });
+  return id;
 }
 
 export async function ensureFolder(name, parentId) {
   const existing = await listChildFolders(parentId, name);
   if (existing.length) {
-    logger.debug('Folder already exists, reusing', { name, id: existing[0].id });
-    return existing[0].id;
+    const id = pickField(existing[0], 'id', 'Id', 'ID');
+    logger.debug('Folder already exists, reusing', { name, id });
+    return id;
   }
   return createFolder(name, parentId);
 }

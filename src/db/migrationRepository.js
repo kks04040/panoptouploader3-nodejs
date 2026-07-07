@@ -51,6 +51,24 @@ export async function reclaimStuckRows(staleSeconds) {
   }
 }
 
+export async function claimRow(migrationId) {
+  const conn = await getConnection();
+  try {
+    // 원자적 UPDATE로 클레임: status가 아직 PENDING인 경우에만 FOLDER_CREATING으로 전환.
+    // 다중 인스턴스가 같은 행을 동시에 클레임하지 못하도록 보장(rowsAffected=0이면 이미 클레임됨).
+    const result = await conn.execute(
+      `UPDATE content_migration
+       SET status = 'FOLDER_CREATING'
+       WHERE migration_id = :id AND status = 'PENDING'`,
+      { id: { val: migrationId, dir: oracledb.BIND_IN, type: oracledb.NUMBER } }
+    );
+    await conn.commit();
+    return (result.rowsAffected || 0) > 0;
+  } finally {
+    await conn.close();
+  }
+}
+
 export async function updateStatus(id, status) {
   const conn = await getConnection();
   try {
@@ -168,10 +186,7 @@ export async function findExistingFolderIds(linkId, courseName) {
 function normalizeRow(row) {
   const o = {};
   for (const k of Object.keys(row)) {
-    const v = row[k];
-    if (v instanceof Date) o[k.toLowerCase()] = v;
-    else if (oracledb && v && typeof v === 'object' && v.constructor && v.constructor.name === 'Lob') o[k.toLowerCase()] = null;
-    else o[k.toLowerCase()] = v;
+    o[k.toLowerCase()] = row[k];
   }
   return o;
 }
