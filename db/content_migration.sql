@@ -8,6 +8,7 @@ CREATE TABLE content_migration (
     migration_id             NUMBER(19)       NOT NULL,
     professor_emp_no         VARCHAR2(20)     NOT NULL,  -- 교수자 사번 (LXP 기준)
     professor_name           VARCHAR2(100),               -- 교수자명
+    professor_email          VARCHAR2(200),               -- 교수자 이메일 (외부 사용자 생성 시 필수)
     panopto_link_id          VARCHAR2(100)    NOT NULL,  -- 파놉토연결ID (외부사용자 연동 ID)
     panopto_user_folder_name VARCHAR2(200)    NOT NULL,  -- 사용자 폴더명 (파놉토연결ID<DELIM>사번)
     course_id                VARCHAR2(50),                -- LXP 과목 ID

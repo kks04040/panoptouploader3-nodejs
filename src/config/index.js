@@ -26,6 +26,7 @@ function str(key, def) {
 const panoptoSiteUrl = required('PANOPTO_SITE_URL').replace(/\/$/, '');
 const linkEntityId = required('PANOPTO_LINK_ENTITY_ID');
 const delimiter = str('FOLDER_NAME_DELIMITER', '\\');
+const soapApiVersion = str('PANOPTO_SOAP_API_VERSION', '4.6');
 
 const config = {
   isOnce: process.argv.includes('--once'),
@@ -46,8 +47,12 @@ const config = {
     usersParentFolderId: required('PANOPTO_USERS_PARENT_FOLDER_ID'),
     linkEntityId,
     folderDelimiter: delimiter,
-    serviceAccountUser: str('PANOPTO_SERVICE_ACCOUNT_USER', ''),
-    serviceAccountPassword: str('PANOPTO_SERVICE_ACCOUNT_PASSWORD', ''),
+    serviceAccountUser: required('PANOPTO_SERVICE_ACCOUNT_USER'),
+    serviceAccountPassword: required('PANOPTO_SERVICE_ACCOUNT_PASSWORD'),
+    idpApplicationKey: str('PANOPTO_IDP_APPLICATION_KEY', ''),
+    soapApiVersion,
+    soapUserManagementWsdl: `${panoptoSiteUrl}/Panopto/PublicAPI/${soapApiVersion}/UserManagement.svc?wsdl`,
+    soapUserManagementEndpoint: `${panoptoSiteUrl}/Panopto/PublicAPI/${soapApiVersion}/UserManagement.svc`,
   },
   linux: {
     accessMode: str('LINUX_FILE_ACCESS_MODE', 'LOCAL_MOUNT'),

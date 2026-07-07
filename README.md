@@ -16,7 +16,8 @@ src/
   panopto/
     auth.js                # OAuth2 Client Credentials 토큰 발급/갱신(캐싱)
     client.js              # axios 인스턴스 + 401 자동 재발급 인터셉터
-    users.js               # linkID -> userKey 조회
+    users.js               # linkID(=cup-panopto\사번) userKey 조회 + 미존재 시 SOAP CreateUser 멱등 등록
+    soapClient.js          # UserManagement.svc SOAP 클라이언트 + AuthCode/UserKey 인증
     folders.js             # 폴더 조회/생성(중복 체크)
     permissions.js         # 폴더 Creator 권한 부여
     sessions.js            # 업로드 세션 생성/완료/상태 조회
@@ -40,7 +41,7 @@ db/content_migration.sql  # Oracle DDL
 ## 처리 흐름
 
 1. `status = PENDING` 행을 `BATCH_SIZE` 만큼 조회.
-2. `FOLDER_CREATING` 전환 → user 폴더(`cup-panopto<DELIM>사번`)/course 폴더 보장 (기존 ID 재사용, sibling row 재사용, 없으면 생성 후 DB 갱신).
+2. `FOLDER_CREATING` 전환 → Panopto 사용자 보장(`panopto_link_id` = `cup-panopto\사번` userKey). 존재하지 않으면 SOAP `CreateUser`로 외부 사용자 생성(이름/이메일). 이미 존재하면 스킵. → user 폴더(`cup-panopto<DELIM>사번`)/course 폴더 보장.
 3. 교수 userKey 조회 → user 폴더 Creator 권한 부여.
 4. `UPLOADING` 전환 → `POST /sessionUpload`로 빈 세션 생성, `uploadTarget` 확보.
 5. `uploadTarget`로 매니페스트 + MP4 PUT 업로드 후 `PUT /sessionUpload/{id}` 완료 신호.

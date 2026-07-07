@@ -3,7 +3,7 @@ import config from '../config/index.js';
 import { truncate } from '../utils/index.js';
 
 const COLUMNS = `
-  migration_id, professor_emp_no, professor_name, panopto_link_id,
+  migration_id, professor_emp_no, professor_name, professor_email, panopto_link_id,
   panopto_user_folder_name, course_id, course_name,
   source_file_path, source_file_name, panopto_session_name,
   panopto_parent_folder_id, panopto_user_folder_id, panopto_course_folder_id,

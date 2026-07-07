@@ -3,7 +3,7 @@ import { buildUserFolderName } from './config/index.js';
 import logger from './utils/logger.js';
 import { MigrationError, sleep } from './utils/index.js';
 import * as repo from './db/migrationRepository.js';
-import { resolveUserKey } from './panopto/users.js';
+import { resolveUserKey, ensureUser } from './panopto/users.js';
 import { ensureFolder, getFolder } from './panopto/folders.js';
 import { grantCreatorAccess } from './panopto/permissions.js';
 import { createUploadSession, finishUploadSession, getSessionStatus, isSessionComplete, isSessionFailed } from './panopto/sessions.js';
@@ -20,6 +20,7 @@ export async function processMigration(row) {
   });
 
   await repo.updateStatus(row.migration_id, 'FOLDER_CREATING');
+  await ensurePanoptoUser(row, log);
   const courseFolderId = await ensureCourseFolder(row, log);
   log.info('Course folder ready', { courseFolderId });
 
@@ -80,9 +81,22 @@ async function ensureCourseFolder(row, log) {
   return courseFolderId;
 }
 
+async function ensurePanoptoUser(row, log) {
+  try {
+    await ensureUser({
+      linkId: row.panopto_link_id,
+      name: row.professor_name,
+      email: row.professor_email,
+    });
+    log.info('Panopto user ensured', { userKey: row.panopto_link_id });
+  } catch (err) {
+    log.warn('Panopto user creation skipped/failed (non-fatal)', { err: err.message });
+  }
+}
+
 async function grantCourseAccess(courseFolderId, row, log) {
   try {
-    const userKey = await resolveUserKey(row.panopto_link_id, row.professor_emp_no);
+    const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
     await grantCreatorAccess(courseFolderId, userKey);
     log.info('Granted Creator access on course folder', { courseFolderId, userKey });
   } catch (err) {
@@ -101,7 +115,7 @@ async function ensureUserFolder(row, log) {
   await repo.updateUserFolder(row.migration_id, userFolderId);
 
   try {
-    const userKey = await resolveUserKey(row.panopto_link_id, row.professor_emp_no);
+    const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
     await grantCreatorAccess(userFolderId, userKey);
   } catch (err) {
     log.warn('Permission grant skipped/failed (non-fatal)', { err: err.message });
