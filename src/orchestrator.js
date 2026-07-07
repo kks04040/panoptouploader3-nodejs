@@ -20,6 +20,7 @@ export async function processMigration(row) {
   });
 
   await repo.updateStatus(row.migration_id, 'FOLDER_CREATING');
+  validateUserFields(row);
   await ensurePanoptoUser(row, log);
   const courseFolderId = await ensureCourseFolder(row, log);
   log.info('Course folder ready', { courseFolderId });
@@ -81,17 +82,22 @@ async function ensureCourseFolder(row, log) {
   return courseFolderId;
 }
 
-async function ensurePanoptoUser(row, log) {
-  try {
-    await ensureUser({
-      linkId: row.panopto_link_id,
-      name: row.professor_name,
-      email: row.professor_email,
-    });
-    log.info('Panopto user ensured', { userKey: row.panopto_link_id });
-  } catch (err) {
-    log.warn('Panopto user creation skipped/failed (non-fatal)', { err: err.message });
+function validateUserFields(row) {
+  if (!row.panopto_link_id) {
+    throw new MigrationError(`Missing panopto_link_id (migration_id=${row.migration_id})`, { retryable: false });
   }
+  if (!row.professor_email) {
+    throw new MigrationError(`Missing professor_email for linkId=${row.panopto_link_id} (migration_id=${row.migration_id})`, { retryable: false });
+  }
+}
+
+async function ensurePanoptoUser(row, log) {
+  await ensureUser({
+    linkId: row.panopto_link_id,
+    name: row.professor_name,
+    email: row.professor_email,
+  });
+  log.info('Panopto user ensured', { userKey: row.panopto_link_id });
 }
 
 async function grantCourseAccess(courseFolderId, row, log) {

@@ -44,9 +44,11 @@ export async function getUserManagementClient() {
       endpoint: config.panopto.soapUserManagementEndpoint,
       forceSoap12Headers: false,
     });
-    client.setSecurity(new Soap.BasicAuthSecurity('', ''));
     logger.debug('Panopto SOAP client ready');
     return client;
-  })();
+  })().catch((err) => {
+    clientPromise = null;
+    throw err;
+  });
   return clientPromise;
 }
