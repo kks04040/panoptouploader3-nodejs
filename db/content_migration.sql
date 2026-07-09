@@ -10,7 +10,6 @@ CREATE TABLE content_migration (
     professor_name           VARCHAR2(100),               -- 교수자명
     professor_email          VARCHAR2(200),               -- 교수자 이메일 (외부 사용자 생성 시 필수)
     panopto_link_id          VARCHAR2(100)    NOT NULL,  -- 파놉토연결ID (외부사용자 연동 ID)
-    panopto_user_folder_name VARCHAR2(200)    NOT NULL,  -- 사용자 폴더명 (파놉토연결ID<DELIM>사번)
     course_id                VARCHAR2(50),                -- LXP 과목 ID
     course_name              VARCHAR2(200)    NOT NULL,  -- 과목명 (파놉토 폴더명)
     source_file_path         VARCHAR2(500)    NOT NULL,  -- Linux 서버 원본 동영상 전체 경로

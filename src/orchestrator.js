@@ -158,8 +158,7 @@ async function ensureUserFolder(row, log) {
     if (existing) return row.panopto_user_folder_id;
   }
   const userFolderName = buildUserFolderName(row.professor_emp_no);
-  const expectedName = row.panopto_user_folder_name || userFolderName;
-  const userFolderId = await ensureFolder(expectedName, config.panopto.usersParentFolderId);
+  const userFolderId = await ensureFolder(userFolderName, config.panopto.usersParentFolderId);
   await repo.updateUserFolder(row.migration_id, userFolderId);
 
   const userKey = resolveUserKey(row.panopto_link_id, row.professor_emp_no);
